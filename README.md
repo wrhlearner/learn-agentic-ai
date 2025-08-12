@@ -16,3 +16,9 @@
   - application: deepWiki-open
 
 # Agent universe
+
+- [roadmap](./universe_roadmap.md)
+
+# reference
+
+- [ollama local LLM APIs](https://github.com/ollama/ollama/blob/main/README.md#quickstart)
