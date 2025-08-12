@@ -250,33 +250,138 @@
 ########################################################
 ############ 3. add memory ##################
 ########################################################
+# from typing import Annotated
+
+# from langchain_tavily import TavilySearch
+# from typing_extensions import TypedDict
+
+# from langgraph.checkpoint.memory import InMemorySaver
+# from langgraph.graph import StateGraph
+# from langgraph.graph.message import add_messages
+# from langgraph.prebuilt import ToolNode, tools_condition
+
+# class State(TypedDict):
+#     messages: Annotated[list, add_messages]
+
+# graph_builder = StateGraph(State)
+
+# import os
+# from dotenv import load_dotenv
+
+# load_dotenv()
+
+# if not os.environ.get("TAVILY_API_KEY"):
+#     os.environ["TAVILY_API_KEY"] = os.getenv('TAVILY_API_KEY')
+
+# tool = TavilySearch(max_results=2)
+# tools = [tool]
+
+# from langchain_ollama import ChatOllama
+
+# llm = ChatOllama(
+#     model="llama3.2",
+#     temperature=0,
+# )
+# llm_with_tools = llm.bind_tools(tools)
+
+# def chatbot(state: State):
+#     return {"messages": [llm_with_tools.invoke(state["messages"])]}
+
+# graph_builder.add_node("chatbot", chatbot)
+
+# tool_node = ToolNode(tools=[tool])
+# graph_builder.add_node("tools", tool_node)
+
+# graph_builder.add_conditional_edges(
+#     "chatbot",
+#     tools_condition,
+# )
+# graph_builder.add_edge("tools", "chatbot")
+# graph_builder.set_entry_point("chatbot")
+
+# # create a MemorySaver checkpointer
+# from langgraph.checkpoint.memory import InMemorySaver
+
+# memory = InMemorySaver()
+
+# # compile a graph
+# graph = graph_builder.compile(checkpointer=memory)
+
+# # interact with your chatbot
+# # Pick a thread to use as the key for this conversation
+# config = {"configurable": {"thread_id": "1"}}
+
+# # Call your chatbot
+# user_input = "Hi there! My name is Will."
+
+# # The config is the **second positional argument** to stream() or invoke()!
+# events = graph.stream(
+#     {"messages": [{"role": "user", "content": user_input}]},
+#     config,
+#     stream_mode="values",
+# )
+# for event in events:
+#     event["messages"][-1].pretty_print()
+
+# # Ask a follow-up question
+# user_input = "Remember my name?"
+
+# # The config is the **second positional argument** to stream() or invoke()!
+# events = graph.stream(
+#     {"messages": [{"role": "user", "content": user_input}]},
+#     config,
+#     stream_mode="values",
+# )
+# for event in events:
+#     event["messages"][-1].pretty_print()
+
+# # The only difference is we change the `thread_id` here to "2" instead of "1"
+# events = graph.stream(
+#     {"messages": [{"role": "user", "content": user_input}]},
+#     {"configurable": {"thread_id": "2"}},
+#     stream_mode="values",
+# )
+# for event in events:
+#     event["messages"][-1].pretty_print()
+
+
+########################################################
+############ 4. add human-in-the-loop controls ##################
+########################################################
+import os
+from dotenv import load_dotenv
 from typing import Annotated
 
 from langchain_tavily import TavilySearch
+from langchain_core.tools import tool
 from typing_extensions import TypedDict
 
 from langgraph.checkpoint.memory import InMemorySaver
-from langgraph.graph import StateGraph
+from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.types import Command, interrupt
 
-class State(TypedDict):
-    messages: Annotated[list, add_messages]
-
-graph_builder = StateGraph(State)
-
-import os
-from dotenv import load_dotenv
+from langchain_ollama import ChatOllama
 
 load_dotenv()
 
 if not os.environ.get("TAVILY_API_KEY"):
     os.environ["TAVILY_API_KEY"] = os.getenv('TAVILY_API_KEY')
 
-tool = TavilySearch(max_results=2)
-tools = [tool]
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
 
-from langchain_ollama import ChatOllama
+graph_builder = StateGraph(State)
+
+@tool
+def human_assistance(query: str) -> str:
+    """Request assistance from a human."""
+    human_response = interrupt({"query": query})
+    return human_response["data"]
+
+tool = TavilySearch(max_results=2)
+tools = [tool, human_assistance]
 
 llm = ChatOllama(
     model="llama3.2",
@@ -285,11 +390,13 @@ llm = ChatOllama(
 llm_with_tools = llm.bind_tools(tools)
 
 def chatbot(state: State):
-    return {"messages": [llm_with_tools.invoke(state["messages"])]}
+    message = llm_with_tools.invoke(state["messages"])
+    assert(len(message.tool_calls) <= 1)
+    return {"messages": [message]}
 
 graph_builder.add_node("chatbot", chatbot)
 
-tool_node = ToolNode(tools=[tool])
+tool_node = ToolNode(tools=tools)
 graph_builder.add_node("tools", tool_node)
 
 graph_builder.add_conditional_edges(
@@ -297,57 +404,57 @@ graph_builder.add_conditional_edges(
     tools_condition,
 )
 graph_builder.add_edge("tools", "chatbot")
-graph_builder.set_entry_point("chatbot")
-
-# create a MemorySaver checkpointer
-from langgraph.checkpoint.memory import InMemorySaver
+graph_builder.add_edge(START, "chatbot")
 
 memory = InMemorySaver()
-
-# compile a graph
 graph = graph_builder.compile(checkpointer=memory)
 
-# interact with your chatbot
-# Pick a thread to use as the key for this conversation
+# visualize the graph
+try:
+    current_path = os.path.dirname(os.path.abspath(__file__))
+    outputFilename = os.path.join(current_path, '..', 'tests', '1_basic_chatbot_with_tool_and_human_in_the_loop.png')
+    graph.get_graph().draw_mermaid_png(output_file_path=outputFilename)
+    print(f"Saved graph to {outputFilename}")
+except Exception:
+    # This requires some extra dependencies and is optional
+    pass
+
+user_input = "I need some expert guidance for building an AI agent. Could you request assistance for me?"
+# # Note: The human_assistance tool is called for certain prompts which are related to human_assistance tool function doc
+# #       For user inputs that doesn't match, the tool wouldn't be called, like the example below
+# user_input = "I want to build an AI agent. Tell me how"
 config = {"configurable": {"thread_id": "1"}}
 
-# Call your chatbot
-user_input = "Hi there! My name is Will."
-
-# The config is the **second positional argument** to stream() or invoke()!
 events = graph.stream(
     {"messages": [{"role": "user", "content": user_input}]},
     config,
     stream_mode="values",
 )
 for event in events:
-    event["messages"][-1].pretty_print()
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
 
-# Ask a follow-up question
-user_input = "Remember my name?"
+snapshot = graph.get_state(config)
+print(f"\n\n{'='*20}\n\nsnapshot.next {snapshot.next}\n\n{'='*20}\n\n")
 
-# The config is the **second positional argument** to stream() or invoke()!
-events = graph.stream(
-    {"messages": [{"role": "user", "content": user_input}]},
-    config,
-    stream_mode="values",
+human_response = (
+    "We, the experts are here to help! We'd recommend you check out LangGraph to build your agent."
+    " It's much more reliable and extensible than simple autonomous agents."
 )
-for event in events:
-    event["messages"][-1].pretty_print()
 
-# The only difference is we change the `thread_id` here to "2" instead of "1"
+human_command = Command(resume={"data": human_response})
+
 events = graph.stream(
-    {"messages": [{"role": "user", "content": user_input}]},
-    {"configurable": {"thread_id": "2"}},
-    stream_mode="values",
+    human_command, 
+    config, 
+    stream_mode="values"
 )
+
 for event in events:
-    event["messages"][-1].pretty_print()
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
 
 
-########################################################
-############ 4. add human-in-the-loop controls ##################
-########################################################
 
 ########################################################
 ############ 5. customize state ##################
