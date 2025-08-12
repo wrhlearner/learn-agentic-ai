@@ -1,0 +1,7 @@
+{
+    "dependencies": ["."],
+    "graphs": {
+      "2_1_deployment_local": "./src/2_1_deployment_local.py:graph"
+    },
+    "env": ".env"
+  }
