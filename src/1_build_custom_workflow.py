@@ -348,12 +348,124 @@
 ########################################################
 ############ 4. add human-in-the-loop controls ##################
 ########################################################
+# import os
+# from dotenv import load_dotenv
+# from typing import Annotated
+
+# from langchain_tavily import TavilySearch
+# from langchain_core.tools import tool
+# from typing_extensions import TypedDict
+
+# from langgraph.checkpoint.memory import InMemorySaver
+# from langgraph.graph import StateGraph, START, END
+# from langgraph.graph.message import add_messages
+# from langgraph.prebuilt import ToolNode, tools_condition
+# from langgraph.types import Command, interrupt
+
+# from langchain_ollama import ChatOllama
+
+# load_dotenv()
+
+# if not os.environ.get("TAVILY_API_KEY"):
+#     os.environ["TAVILY_API_KEY"] = os.getenv('TAVILY_API_KEY')
+
+# class State(TypedDict):
+#     messages: Annotated[list, add_messages]
+
+# graph_builder = StateGraph(State)
+
+# @tool
+# def human_assistance(query: str) -> str:
+#     """Request assistance from a human."""
+#     human_response = interrupt({"query": query})
+#     return human_response["data"]
+
+# tool = TavilySearch(max_results=2)
+# tools = [tool, human_assistance]
+
+# llm = ChatOllama(
+#     model="llama3.2",
+#     temperature=0,
+# )
+# llm_with_tools = llm.bind_tools(tools)
+
+# def chatbot(state: State):
+#     message = llm_with_tools.invoke(state["messages"])
+#     assert(len(message.tool_calls) <= 1)
+#     return {"messages": [message]}
+
+# graph_builder.add_node("chatbot", chatbot)
+
+# tool_node = ToolNode(tools=tools)
+# graph_builder.add_node("tools", tool_node)
+
+# graph_builder.add_conditional_edges(
+#     "chatbot",
+#     tools_condition,
+# )
+# graph_builder.add_edge("tools", "chatbot")
+# graph_builder.add_edge(START, "chatbot")
+
+# memory = InMemorySaver()
+# graph = graph_builder.compile(checkpointer=memory)
+
+# # visualize the graph
+# try:
+#     current_path = os.path.dirname(os.path.abspath(__file__))
+#     outputFilename = os.path.join(current_path, '..', 'tests', '1_basic_chatbot_with_tool_and_human_in_the_loop.png')
+#     graph.get_graph().draw_mermaid_png(output_file_path=outputFilename)
+#     print(f"Saved graph to {outputFilename}")
+# except Exception:
+#     # This requires some extra dependencies and is optional
+#     pass
+
+# user_input = "I need some expert guidance for building an AI agent. Could you request assistance for me?"
+# # # Note: The human_assistance tool is called for certain prompts which are related to human_assistance tool function doc
+# # #       For user inputs that doesn't match, the tool wouldn't be called, like the example below
+# # user_input = "I want to build an AI agent. Tell me how"
+# config = {"configurable": {"thread_id": "1"}}
+
+# events = graph.stream(
+#     {"messages": [{"role": "user", "content": user_input}]},
+#     config,
+#     stream_mode="values",
+# )
+# for event in events:
+#     if "messages" in event:
+#         event["messages"][-1].pretty_print()
+
+# snapshot = graph.get_state(config)
+# print(f"\n\n{'='*20}\n\nsnapshot.next {snapshot.next}\n\n{'='*20}\n\n")
+
+# human_response = (
+#     "We, the experts are here to help! We'd recommend you check out LangGraph to build your agent."
+#     " It's much more reliable and extensible than simple autonomous agents."
+# )
+
+# human_command = Command(resume={"data": human_response})
+
+# events = graph.stream(
+#     human_command, 
+#     config, 
+#     stream_mode="values"
+# )
+
+# for event in events:
+#     if "messages" in event:
+#         event["messages"][-1].pretty_print()
+
+
+
+########################################################
+############ 5. customize state ##################
+########################################################
 import os
 from dotenv import load_dotenv
 from typing import Annotated
 
 from langchain_tavily import TavilySearch
-from langchain_core.tools import tool
+from langchain_core.messages import ToolMessage
+from langchain_core.tools import InjectedToolCallId, tool
 from typing_extensions import TypedDict
 
 from langgraph.checkpoint.memory import InMemorySaver
@@ -371,17 +483,40 @@ if not os.environ.get("TAVILY_API_KEY"):
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
-
-graph_builder = StateGraph(State)
+    name: str
+    birthday: str
 
 @tool
-def human_assistance(query: str) -> str:
+def human_assistance(
+    name: str, birthday: str, tool_call_id: Annotated[str, InjectedToolCallId]
+) -> str:
     """Request assistance from a human."""
-    human_response = interrupt({"query": query})
-    return human_response["data"]
+    human_response = interrupt(
+        {
+            "question": "Is this correct?",
+            "name": name,
+            "birthday": birthday,
+        },
+    )
+    if human_response.get("correct", "").lower().startswith("y"):
+        verified_name = name
+        verified_birthday = birthday
+        response = "Correct"
+    else:
+        verified_name = human_response.get("name", name)
+        verified_birthday = human_response.get("birthday", birthday)
+        response = f"Made a correction: {human_response}"
+
+    state_update = {
+        "name": verified_name,
+        "birthday": verified_birthday,
+        "messages": [ToolMessage(response, tool_call_id=tool_call_id)],
+    }
+    return Command(update=state_update)
+
 
 tool = TavilySearch(max_results=2)
-tools = [tool, human_assistance]
+tools = [human_assistance, tool]
 
 llm = ChatOllama(
     model="llama3.2",
@@ -394,6 +529,7 @@ def chatbot(state: State):
     assert(len(message.tool_calls) <= 1)
     return {"messages": [message]}
 
+graph_builder = StateGraph(State)
 graph_builder.add_node("chatbot", chatbot)
 
 tool_node = ToolNode(tools=tools)
@@ -412,17 +548,17 @@ graph = graph_builder.compile(checkpointer=memory)
 # visualize the graph
 try:
     current_path = os.path.dirname(os.path.abspath(__file__))
-    outputFilename = os.path.join(current_path, '..', 'tests', '1_basic_chatbot_with_tool_and_human_in_the_loop.png')
+    outputFilename = os.path.join(current_path, '..', 'tests', '1_basic_chatbot_with_customized_state.png')
     graph.get_graph().draw_mermaid_png(output_file_path=outputFilename)
     print(f"Saved graph to {outputFilename}")
 except Exception:
     # This requires some extra dependencies and is optional
     pass
 
-user_input = "I need some expert guidance for building an AI agent. Could you request assistance for me?"
-# # Note: The human_assistance tool is called for certain prompts which are related to human_assistance tool function doc
-# #       For user inputs that doesn't match, the tool wouldn't be called, like the example below
-# user_input = "I want to build an AI agent. Tell me how"
+user_input = (
+    "Can you look up when LangGraph was released? "
+    "When you have the answer and if you haven't call human_assistance tool, you must call the human_assistance tool for review no matter what."
+)
 config = {"configurable": {"thread_id": "1"}}
 
 events = graph.stream(
@@ -430,35 +566,40 @@ events = graph.stream(
     config,
     stream_mode="values",
 )
+
 for event in events:
     if "messages" in event:
         event["messages"][-1].pretty_print()
+    snapshot = graph.get_state(config)
+    print(f"\n\n{'='*100}\n\nsnapshot.next {snapshot.next}\n\n{'='*100}\n\n")
+
+human_command = Command(
+    resume={
+        "name": "LangGraph",
+        "birthday": "Jan 17, 2024",
+    },
+)
+
+events = graph.stream(human_command, config, stream_mode="values")
+for event in events:
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
+
+# manually update state
+graph.update_state(config, 
+    {
+        "name": "LangGraph (library)",
+        "birthday": "This is a test"
+    }
+)
 
 snapshot = graph.get_state(config)
-print(f"\n\n{'='*20}\n\nsnapshot.next {snapshot.next}\n\n{'='*20}\n\n")
 
-human_response = (
-    "We, the experts are here to help! We'd recommend you check out LangGraph to build your agent."
-    " It's much more reliable and extensible than simple autonomous agents."
-)
+values = {
+    k: v for k, v in snapshot.values.items() if k in ("name", "birthday")
+}
 
-human_command = Command(resume={"data": human_response})
-
-events = graph.stream(
-    human_command, 
-    config, 
-    stream_mode="values"
-)
-
-for event in events:
-    if "messages" in event:
-        event["messages"][-1].pretty_print()
-
-
-
-########################################################
-############ 5. customize state ##################
-########################################################
+print(f"\n\n{'='*100}\n\nvalues {values}\n\n{'='*100}\n\n")
 
 ########################################################
 ############ 6. Time travel ##################
