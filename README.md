@@ -15,4 +15,7 @@
   - platform: code open platform
   - application: deepWiki-open
 
-# Agent universe
+# Reference
+
+- [An awesome LLM related experience blog hub from hugging-face](https://huggingface.co/learn)
+- 
