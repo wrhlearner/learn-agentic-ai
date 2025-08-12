@@ -15,6 +15,7 @@
   - platform: code open platform
   - application: deepWiki-open
 
+<<<<<<< HEAD
 # Agent universe
 
 - [roadmap](./universe_roadmap.md)
@@ -22,3 +23,9 @@
 # reference
 
 - [ollama local LLM APIs](https://github.com/ollama/ollama/blob/main/README.md#quickstart)
+=======
+# Reference
+
+- [An awesome LLM related experience blog hub from hugging-face](https://huggingface.co/learn)
+- 
+>>>>>>> main
