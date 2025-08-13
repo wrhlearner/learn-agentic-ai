@@ -13,6 +13,7 @@ dependencies = [
     "langchain-tavily>=0.2.11",
     "langchain-text-splitters>=0.3.9",
     "langgraph>=0.6.4",
+    "langgraph-supervisor>=0.0.29",
     "langsmith>=0.4.13",
     "numpy>=2.3.2",
     "ollama>=0.5.3",
