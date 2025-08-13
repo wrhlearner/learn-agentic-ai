@@ -5,6 +5,14 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Debugger 2.4: SQL Agent",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/2_4_sql_agent.py",
+            "console": "integratedTerminal",
+            "python": "${workspaceFolder}/.venv/Scripts/python.exe"
+        },
+        {
             "name": "Debugger 2.3: agent supervisor",
             "type": "debugpy",
             "request": "launch",
