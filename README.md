@@ -12,7 +12,7 @@
 - learn components by making demos
 - learn existing open-source projects
   - agent: openManus
-  - platform: code open platform
+  - platform: coze open platform
   - application: deepWiki-open
 
 # Reference
