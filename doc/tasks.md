@@ -33,6 +33,8 @@
   - Summarization
   - Feature Extraction
   - Text Generation
+    - Code Generation
+      - Domain-Specific Language (DSL) generation
   - Fill-Mask
   - Sentence Similarity
   - Table to Text
