@@ -18,4 +18,4 @@
 # Reference
 
 - [An awesome LLM related experience blog hub from hugging-face](https://huggingface.co/learn)
-- 
+- [Langchain open tutorial](https://langchain-opentutorial.gitbook.io/langchain-opentutorial)
