@@ -1,6 +1,7 @@
 # custom
 .langgraph_api
 data/
+Modelfile
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
