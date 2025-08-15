@@ -18,4 +18,5 @@
 # Reference
 
 - [An awesome LLM related experience blog hub from hugging-face](https://huggingface.co/learn)
+- [Langchain cookbook](https://github.com/langchain-ai/langchain/tree/master/cookbook)
 - [Langchain open tutorial](https://langchain-opentutorial.gitbook.io/langchain-opentutorial)
