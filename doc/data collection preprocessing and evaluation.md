@@ -37,3 +37,6 @@ outputs:
 
 ## Evaluation and Benchmark
 
+## Reference
+
+- [LIMA less is more for alignment](https://arxiv.org/abs/2305.11206)
